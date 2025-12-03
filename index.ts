@@ -2,6 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "langchain";
 import { z } from "zod";
 import { createAgent } from "langchain";
+import readline from 'node:readline/promises';
+import { MemorySaver } from '@langchain/langgraph';
 
 const model = new ChatOpenAI({
     model: "gpt-4.1",
@@ -213,40 +215,50 @@ When a request involves multiple actions, use multiple tools in sequence. Make s
 
 const supervisorAgent = createAgent({
     model: model,
-    tools: [scheduleEvent, manageEmail,manageContacts],
+    tools: [scheduleEvent, manageEmail, manageContacts],
     systemPrompt: SUPERVISOR_PROMPT,
+    checkpointer: new MemorySaver(),
 });
 
 async function main() {
+    const config = { configurable: { thread_id: '1' } };
 
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-    const query = "Schedule a team standup for tomorrow at 9am";
+    while (true) {
+        // const query = `Schedule a design team standup for tomorrow at 9am.
+        // Send everyone on design team the email about it`;
 
-    const stream = await supervisorAgent.stream({
-        messages: [{ role: "user", content: query }]
-    });
+        const query = await rl.question('You: ');
 
-    for await (const step of stream) {
-        for (const update of Object.values(step)) {
-            if (update && typeof update === "object" && "messages" in update) {
-                for (const message of update.messages) {
-                    console.log(message.toFormattedString());
+        const stream = await supervisorAgent.stream(
+            {
+                messages: [{ role: 'user', content: query }],
+            },
+            config
+        );
+
+        for await (const step of stream) {
+            for (const update of Object.values(step)) {
+                if (update && typeof update === 'object' && 'messages' in update) {
+                    for (const message of update.messages) {
+                        console.log(message.toFormattedString());
+                    }
                 }
             }
         }
     }
 
-
     // const query = `Schedule a team meeting next Tuesday at 2pm for 1 hour.
-    // there is no attendees for now, and use all default setting.Just crerate an event.`;
+    // there is no attendees for now, and use all default settings. Just create an event.`;
 
     // const stream = await calendarAgent.stream({
-    //     messages: [{ role: "user", content: query }]
+    //     messages: [{ role: 'user', content: query }],
     // });
 
     // for await (const step of stream) {
     //     for (const update of Object.values(step)) {
-    //         if (update && typeof update === "object" && "messages" in update) {
+    //         if (update && typeof update === 'object' && 'messages' in update) {
     //             for (const message of update.messages) {
     //                 console.log(message.toFormattedString());
     //             }
@@ -254,24 +266,21 @@ async function main() {
     //     }
     // }
 
+    // const query = 'what is the email id of Sujoy?';
 
-
-
-    // const query = `Send the design team a reminder about reviewing the new mockups`;
-
-    // const stream = await emailAgent.stream({
-    //     messages: [{ role: "user", content: query }]
+    // const stream = await contactAgent.stream({
+    //     messages: [{ role: 'user', content: query }],
     // });
 
     // for await (const step of stream) {
     //     for (const update of Object.values(step)) {
-    //         if (update && typeof update === "object" && "messages" in update) {
+    //         if (update && typeof update === 'object' && 'messages' in update) {
     //             for (const message of update.messages) {
     //                 console.log(message.toFormattedString());
     //             }
     //         }
     //     }
     // }
-};
+}
 
 main();
